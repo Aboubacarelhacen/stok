@@ -29,7 +29,7 @@ export function calculate(inp: Inputs) {
   const Qp = Math.sqrt((2 * D * K) / (C2 * i * (1 - D / P)));
   const Np = D / Qp;
   const setupCost = Np * K;
-  const holdProd = (Qp * (1 - D / P) / 2) + (normalCDF(1 / Np) * 20);
+  const holdProd = ((Qp * (1 - D / P) / 2) + (normalCDF(1 / Np) * 20)) * C2 * i;
   const prodCost = D * C2;
   const totalProd = setupCost + holdProd + prodCost;
 
