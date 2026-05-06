@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
-import { calculate, fmt, fmtTL, type Inputs } from "@/lib/inventory";
+import { calculate, fmt, fmtDec, fmtTL, type Inputs } from "@/lib/inventory";
 import {
-  Boxes, Trophy, TrendingUp, TrendingDown,
-  RotateCcw, Coins, Wrench, Percent, ChevronRight, ShoppingCart, Factory,
-  ChevronUp, ChevronDown,
+  Boxes, Trophy, RotateCcw, ShoppingCart, Factory,
+  ChevronUp, ChevronDown, Plus, X, Sliders,
 } from "lucide-react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
@@ -46,10 +45,40 @@ function ParamInput({ field, value, onChange }: any) {
   );
 }
 
+type CustomScenario = { id: number; label: string; inp: Inputs };
+type Draft = { label: string } & Inputs;
+
+const MODAL_FIELDS: { key: FieldKey; label: string; unit: string; step: number }[] = [
+  { key: "D",  label: "Yıllık Talep (D)",       unit: "adet/yıl",  step: 1    },
+  { key: "S",  label: "Sipariş Maliyeti (S)",    unit: "$/sipariş", step: 1    },
+  { key: "C",  label: "Birim Satın Alma (C)",    unit: "$/adet",    step: 0.01 },
+  { key: "K",  label: "Üretim Kurulum (K)",      unit: "$/kurulum", step: 1    },
+  { key: "C2", label: "Birim Üretim (C₂)",       unit: "$/adet",    step: 0.01 },
+  { key: "i",  label: "Elde Tutma Oranı (i)",    unit: "oran",      step: 0.01 },
+];
+
 const Index = () => {
   const [inp, setInp] = useState<Inputs>(DEFAULTS);
   const set = (k: FieldKey, v: number) => setInp((p) => ({ ...p, [k]: v }));
   const r = useMemo(() => calculate(inp), [inp]);
+
+  const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState<Draft>({ label: "", ...DEFAULTS });
+
+  const openModal = () => { setDraft({ label: "", ...DEFAULTS }); setShowAdd(true); };
+  const closeModal = () => setShowAdd(false);
+  const setDraftField = (k: FieldKey, v: number) => setDraft((p) => ({ ...p, [k]: v }));
+
+  const createScenario = () => {
+    if (!draft.label.trim()) return;
+    const { label, ...params } = draft;
+    setCustomScenarios((prev) => [...prev, { id: Date.now(), label, inp: params as Inputs }]);
+    closeModal();
+  };
+
+  const deleteScenario = (id: number) =>
+    setCustomScenarios((prev) => prev.filter((s) => s.id !== id));
 
   const buyWins = r.winner === "buy";
   const winnerName = buyWins ? "Satın Alma Sistemi" : "Üretim Sistemi";
@@ -70,26 +99,6 @@ const Index = () => {
   ];
   const distColors = ["hsl(var(--foreground))", "hsl(var(--accent))", "hsl(220 13% 70%)"];
 
-  const sensData = useMemo(() => {
-    const arr: any[] = [];
-    for (let f = 0.6; f <= 1.41; f += 0.1) {
-      const D = Math.round(inp.D * f);
-      const c = calculate({ ...inp, D });
-      arr.push({ D: `${Math.round(f * 100)}%`, "Satın Alma": Math.round(c.buy.total), "Üretim": Math.round(c.prod.total) });
-    }
-    return arr;
-  }, [inp]);
-
-  const scenarios = [
-    { icon: Coins,        label: "Birim Satın Alma Fiyatı %15 Azalırsa", run: () => setInp({ D: 3200, S: 75, C: 15.30, K: 400, C2: 17,    i: 0.22 }) },
-    { icon: TrendingDown, label: "Talep %20 Azalırsa",                   run: () => setInp({ D: 2560, S: 75, C: 18,    K: 400, C2: 17,    i: 0.22 }) },
-    { icon: Factory,      label: "Satın Alma Fiyatı %15 Azalırsa",       run: () => setInp({ D: 3200, S: 75, C: 18,    K: 400, C2: 19.55, i: 0.22 }) },
-    { icon: TrendingUp,   label: "Talep %20 Artarsa",                    run: () => setInp({ D: 3840, S: 75, C: 18,    K: 400, C2: 17,    i: 0.22 }) },
-    { icon: Wrench,       label: "Birim Üretim Fiyatı %15 Azalırsa",    run: () => setInp({ D: 3200, S: 75, C: 18,    K: 480, C2: 17,    i: 0.22 }) },
-  ];
-
-  const lower = buyWins ? r.buy.total : r.prod.total;
-  const higher = buyWins ? r.prod.total : r.buy.total;
 
   return (
     <div className="min-h-screen bg-background p-3 md:p-6">
@@ -153,26 +162,35 @@ const Index = () => {
         </div>
 
         {/* Quick Scenario card list */}
-        <aside className="bg-card rounded-[32px] p-6">
+        <aside className="bg-card rounded-[32px] p-6 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-display font-bold text-foreground text-lg">Hızlı Senaryo</h3>
             <button onClick={() => setInp(DEFAULTS)} className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground">Temizle</button>
           </div>
-          <div className="space-y-2">
-            {scenarios.map((s) => (
-              <button
-                key={s.label}
-                onClick={s.run}
-                className="w-full flex items-center gap-3 bg-secondary/70 hover:bg-secondary rounded-2xl px-4 py-3 transition group"
-              >
-                <div className="w-9 h-9 rounded-xl bg-card grid place-items-center shrink-0">
-                  <s.icon className="w-4 h-4 text-foreground" />
-                </div>
-                <span className="text-sm font-semibold text-foreground flex-1 text-left">{s.label}</span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
-              </button>
+          <div className="space-y-2 flex-1">
+            {/* Custom scenarios */}
+            {customScenarios.map((s) => (
+              <div key={s.id} className="w-full flex items-center gap-3 bg-accent/10 hover:bg-accent/20 rounded-2xl px-4 py-3 transition group">
+                <button onClick={() => setInp(s.inp)} className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-accent/20 grid place-items-center shrink-0">
+                    <Sliders className="w-4 h-4 text-accent" />
+                  </div>
+                  <span className="text-sm font-semibold text-foreground flex-1 text-left truncate">{s.label}</span>
+                </button>
+                <button onClick={() => deleteScenario(s.id)} className="w-7 h-7 rounded-lg bg-card grid place-items-center hover:bg-secondary shrink-0">
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
             ))}
           </div>
+
+          {/* Add scenario button */}
+          <button
+            onClick={openModal}
+            className="mt-4 w-full flex items-center justify-center gap-2 bg-foreground text-background rounded-2xl px-4 py-3 font-semibold text-sm hover:bg-foreground/90 transition"
+          >
+            <Plus className="w-4 h-4" /> Senaryo Ekle
+          </button>
         </aside>
       </section>
 
@@ -201,7 +219,7 @@ const Index = () => {
           <div className="space-y-2.5 text-sm">
             {[
               ["Sipariş Miktarı (Q)", `${fmt(r.buy.Q)} adet`],
-              ["Sipariş Sayısı (N)", fmt(r.buy.N)],
+              ["Sipariş Sayısı (N)", fmtDec(r.buy.N)],
               ["Yıllık Sipariş Maliyeti", fmtTL(r.buy.orderCost)],
               ["Yıllık Elde Tutma Maliyeti", fmtTL(r.buy.hold)],
               ["Yıllık Satın Alma Maliyeti", fmtTL(r.buy.buyCost)],
@@ -237,7 +255,7 @@ const Index = () => {
           <div className="space-y-2.5 text-sm">
             {[
               ["Üretim Miktarı (Qp)", `${fmt(r.prod.Qp)} adet`],
-              ["Üretim Sayısı (Np)", fmt(r.prod.Np)],
+              ["Üretim Sayısı (Np)", fmtDec(r.prod.Np)],
               ["Yıllık Kurulum Maliyeti", fmtTL(r.prod.setupCost)],
               ["Yıllık Elde Tutma Maliyeti", fmtTL(r.prod.hold)],
               ["Yıllık Üretim Maliyeti", fmtTL(r.prod.prodCost)],
@@ -283,6 +301,78 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Add Scenario Modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative bg-card rounded-[32px] p-8 w-full max-w-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-accent grid place-items-center">
+                  <Sliders className="w-5 h-5 text-accent-foreground" />
+                </div>
+                <div>
+                  <div className="font-display font-bold text-foreground text-xl">Senaryo Ekle</div>
+                  <div className="text-xs text-muted-foreground">Parametreleri girin</div>
+                </div>
+              </div>
+              <button onClick={closeModal} className="w-9 h-9 rounded-xl bg-secondary grid place-items-center hover:bg-secondary/70">
+                <X className="w-4 h-4 text-foreground" />
+              </button>
+            </div>
+
+            {/* Scenario name */}
+            <div className="bg-secondary/70 rounded-2xl px-4 py-3 mb-4">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Senaryo Adı</div>
+              <input
+                type="text"
+                placeholder="Örn: Talep %30 Artarsa"
+                value={draft.label}
+                onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
+                className="w-full bg-transparent outline-none font-semibold text-foreground placeholder:text-muted-foreground/50 text-sm"
+              />
+            </div>
+
+            {/* Parameter inputs — 2 columns */}
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {MODAL_FIELDS.map((f) => (
+                <div key={f.key} className="bg-secondary/70 rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.unit}</div>
+                    <div className="text-xs font-semibold text-foreground truncate">{f.label}</div>
+                  </div>
+                  <input
+                    type="number"
+                    step={f.step}
+                    value={f.key === "i" ? Number(draft[f.key].toFixed(4)) : draft[f.key]}
+                    onChange={(e) => setDraftField(f.key, parseFloat(e.target.value) || 0)}
+                    className="w-20 bg-card rounded-xl px-2 py-1.5 text-right font-display font-bold text-foreground text-sm outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button onClick={closeModal} className="flex-1 bg-secondary rounded-2xl py-3 text-sm font-semibold text-foreground hover:bg-secondary/70 transition">
+                İptal
+              </button>
+              <button
+                onClick={createScenario}
+                disabled={!draft.label.trim()}
+                className="flex-1 bg-foreground text-background rounded-2xl py-3 text-sm font-semibold hover:bg-foreground/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Oluştur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts Row */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
