@@ -22,7 +22,7 @@ export function calculate(inp: Inputs) {
   const Q = Math.sqrt((2 * D * S) / (C * i));
   const N = D / Q;
   const orderCost = N * S;
-  const holdBuy = (Q / 2) * C * i;
+  const holdBuy = (Q / 2 + normalCDF(1 / N) * 10) * C * i;
   const buyCost = D * C;
   const totalBuy = orderCost + holdBuy + buyCost;
 
