@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculate, fmt, fmtDec, fmtTL, type Inputs } from "@/lib/inventory";
 import {
   Boxes, Trophy, RotateCcw, ShoppingCart, Factory,
@@ -62,7 +62,19 @@ const Index = () => {
   const set = (k: FieldKey, v: number) => setInp((p) => ({ ...p, [k]: v }));
   const r = useMemo(() => calculate(inp), [inp]);
 
-  const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
+  const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>(() => {
+    try {
+      const stored = localStorage.getItem("customScenarios");
+      return stored ? (JSON.parse(stored) as CustomScenario[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("customScenarios", JSON.stringify(customScenarios));
+  }, [customScenarios]);
+
   const [showAdd, setShowAdd] = useState(false);
   const [draft, setDraft] = useState<Draft>({ label: "", ...DEFAULTS });
 
